@@ -1,0 +1,63 @@
+
+databases:
+- engine: PG
+  name: send-bill-db
+  num_nodes: 1
+  size: db-s-dev-database
+  version: "12"
+- cluster_name: send-bill-redis
+  engine: REDIS
+  name: send-bill-redis
+  production: true
+  version: "6"
+name: send-bill
+region: nyc
+services:
+- dockerfile_path: Dockerfile.web
+  envs:
+  - key: DATABASE_URL
+    scope: RUN_TIME
+    value: ${send-bill-db.DATABASE_URL}
+  - key: DJANGO_SETTINGS_MODULE
+    scope: RUN_AND_BUILD_TIME
+    value: send_bill.settings_do
+  - key: SECRET_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: 'YeIrKZAJwmRkkIqYxpVjNZPHwoflAAocregTJKlF'
+  - key: REDIS_URL
+    scope: RUN_TIME
+    value: ${send-bill-redis.DATABASE_URL}
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: user/send-bill
+  http_port: 8080
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  name: send-bill-web
+  routes:
+  - path: /
+  run_command: gunicorn --bind 0.0.0.0:8080 --workers 1 --threads 8 --timeout 0 --worker-tmp-dir /dev/shm send_bill.wsgi:application
+workers:
+- dockerfile_path: Dockerfile.web
+  envs:
+  - key: DATABASE_URL
+    scope: RUN_TIME
+    value: ${send-bill-db.DATABASE_URL}
+  - key: DJANGO_SETTINGS_MODULE
+    scope: RUN_AND_BUILD_TIME
+    value: send_bill.settings_do
+  - key: SECRET_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: 'YeIrKZAJwmRkkIqYxpVjNZPHwoflAAocregTJKlF'
+  - key: REDIS_URL
+    scope: RUN_TIME
+    value: ${send-bill-redis.DATABASE_URL}
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: user/send-bill
+  instance_count: 1
+  instance_size_slug: basic-xs
+  name: send-bill-celery
+  run_command: celery -A send_bill worker -l INFO --pool=gevent
